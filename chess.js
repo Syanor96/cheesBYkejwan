@@ -242,47 +242,51 @@ function findKing(b,col){
     return null;
 }
 
-// Fast attacked() — checks from the TARGET square outward (no full board scan)
-function attacked(b,row,col,byCol,ep,cst){
-    const op=byCol;
-    // Sliding pieces (rook/queen directions)
-    const rookDirs=[[1,0],[-1,0],[0,1],[0,-1]];
-    const bishDirs=[[1,1],[1,-1],[-1,1],[-1,-1]];
-    const rookPieces=op==='white'?['♖','♕']:['♜','♛'];
-    const bishPieces=op==='white'?['♗','♕']:['♝','♛'];
-    for(const[dr,dc]of rookDirs){
+// Fast attacked() — checks outward from target square, no full board scan
+function attacked(b,row,col,byCol){
+    const rookP=byCol==='white'?['♖','♕']:['♜','♛'];
+    const bishP=byCol==='white'?['♗','♕']:['♝','♛'];
+    // Rook/Queen lines
+    for(const[dr,dc]of[[1,0],[-1,0],[0,1],[0,-1]]){
         let r=row+dr,c=col+dc;
         while(r>=0&&r<8&&c>=0&&c<8){
             const p=b[r][c];
-            if(p){if(pc(p)===op&&rookPieces.includes(p))return true;break;}
+            if(p){if(pc(p)===byCol&&rookP.includes(p))return true;break;}
             r+=dr;c+=dc;
         }
     }
-    for(const[dr,dc]of bishDirs){
+    // Bishop/Queen diagonals
+    for(const[dr,dc]of[[1,1],[1,-1],[-1,1],[-1,-1]]){
         let r=row+dr,c=col+dc;
         while(r>=0&&r<8&&c>=0&&c<8){
             const p=b[r][c];
-            if(p){if(pc(p)===op&&bishPieces.includes(p))return true;break;}
+            if(p){if(pc(p)===byCol&&bishP.includes(p))return true;break;}
             r+=dr;c+=dc;
         }
     }
-    // Knights
-    const knightP=op==='white'?'♘':'♞';
+    // Knight
+    const kn=byCol==='white'?'♘':'♞';
     for(const[dr,dc]of[[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]]){
         const r=row+dr,c=col+dc;
-        if(r>=0&&r<8&&c>=0&&c<8&&b[r][c]===knightP)return true;
+        if(r>=0&&r<8&&c>=0&&c<8&&b[r][c]===kn)return true;
     }
-    // Pawns
-    if(op==='white'){
-        if(row+1<8){if(col-1>=0&&b[row+1][col-1]==='♙')return true;if(col+1<8&&b[row+1][col+1]==='♙')return true;}
+    // Pawn
+    if(byCol==='white'){
+        if(row+1<8){
+            if(col>0&&b[row+1][col-1]==='♙')return true;
+            if(col<7&&b[row+1][col+1]==='♙')return true;
+        }
     } else {
-        if(row-1>=0){if(col-1>=0&&b[row-1][col-1]==='♟')return true;if(col+1<8&&b[row-1][col+1]==='♟')return true;}
+        if(row>0){
+            if(col>0&&b[row-1][col-1]==='♟')return true;
+            if(col<7&&b[row-1][col+1]==='♟')return true;
+        }
     }
     // King
-    const kingP=op==='white'?'♔':'♚';
+    const kg=byCol==='white'?'♔':'♚';
     for(const[dr,dc]of[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){
         const r=row+dr,c=col+dc;
-        if(r>=0&&r<8&&c>=0&&c<8&&b[r][c]===kingP)return true;
+        if(r>=0&&r<8&&c>=0&&c<8&&b[r][c]===kg)return true;
     }
     return false;
 }
@@ -294,18 +298,18 @@ function legalMoves(b,fr,fc,col,ep,cst){
         if(m.castle){
             const pass=m.castle.endsWith('K')?[5,6]:[2,3];
             const row=m.castle.startsWith('w')?7:0;
-            if(attacked(b,row,4,opp(col),ep,cst))return false;
-            for(const pc2 of pass)if(attacked(b,row,pc2,opp(col),ep,cst))return false;
+            if(attacked(b,row,4,opp(col)))return false;
+            for(const pc2 of pass)if(attacked(b,row,pc2,opp(col)))return false;
         }
         const nb=applyMove(b,fr,fc,m);
         const k=findKing(nb,col);
-        return k&&!attacked(nb,k.row,k.col,opp(col),null,{wK:0,wQ:0,bK:0,bQ:0});
+        return k&&!attacked(nb,k.row,k.col,opp(col));
     });
 }
 
 function inCheck(b,col){
     const k=findKing(b,col);
-    return k&&attacked(b,k.row,k.col,opp(col),null,{wK:0,wQ:0,bK:0,bQ:0});
+    return k&&attacked(b,k.row,k.col,opp(col));
 }
 
 function hasLegal(b,col,ep,cst){
@@ -391,7 +395,7 @@ function patchBoard(changedSquares,prevLF,prevLT){
 }
 
 // ── Piece animation ───────────────────────────────────
-const ANIM_MS=120; // move duration (faster on mobile)
+const ANIM_MS=160; // move duration
 const $fly=document.getElementById('fly-piece');
 
 function sqCenter(r,c){
@@ -607,13 +611,14 @@ function doMove(fr,fc,m){
     }
 
     // ── NORMAL MOVE ──────────────────────────────────────
-    board=applyMove(board,fr,fc,m);
+    // NOTE: apply board state AFTER animation so captured piece is still visible during flight
     updateCastlingEp(piece,fr,fc,m);
     lastFrom={row:fr,col:fc};lastTo={row:m.row,col:m.col};
 
     if(captured||m.ep)SFX.capture(); else SFX.move();
 
     animatePiece(piece,fr,fc,m.row,m.col,capSq,()=>{
+        board=applyMove(board,fr,fc,m);
         patchBoard(changed,prevLF,prevLT);
         finishMove(piece,fr,fc,m,captured,null,null,null,false);
     });
@@ -817,54 +822,46 @@ function getBotMove(){
     return bestMove;
 }
 
-// ── Web Worker for bot (keeps UI smooth) ─────────────
-let _worker=null;
-function getWorker(){
-    if(!_worker){
-        try{
-            _worker=new Worker('./chess-worker.js');
-        }catch(e){_worker=null;}
+// ── Web Worker for bot AI ─────────────────────────────
+let _botWorker=null;
+function ensureWorker(){
+    if(!_botWorker){
+        try{ _botWorker=new Worker('./chess-worker.js'); }catch(e){ _botWorker=null; }
     }
-    return _worker;
+    return _botWorker;
 }
 
 function scheduleBotMove(){
     botBusy=true;
     $botThink.classList.remove('hidden');
-    const w=getWorker();
+    const w=ensureWorker();
     if(w){
-        // Run AI in background thread
-        w.onmessage=function(e){
+        w.onmessage=e=>{
             $botThink.classList.add('hidden');
             botBusy=false;
             const bm=e.data;
-            if(bm&&!over)doMove(bm.fr,bm.fc,bm.move);
+            if(bm&&!over)doMove(bm.fr,bm.fc,bm.move||bm.m);
         };
-        w.onerror=function(){
-            // Fallback to main thread if worker fails
-            _worker=null;
-            $botThink.classList.add('hidden');
-            botBusy=false;
-            const bm=getBotMove();
-            if(bm&&!over)doMove(bm.fr,bm.fc,bm.move);
+        w.onerror=()=>{
+            _botWorker=null;
+            fallbackBotMove();
         };
+        // Small delay so UI can paint "thinking..." before heavy work
         setTimeout(()=>{
-            w.postMessage({
-                board:board.map(r=>[...r]),
-                botCol,botLvl,
-                epTarget,
-                cr:{...cr}
-            });
-        },200);
+            w.postMessage({board:board.map(r=>[...r]),botCol,botLvl,epTarget,cr:{...cr}});
+        },50);
     } else {
-        // Fallback: main thread with short delay
-        setTimeout(()=>{
-            const bm=getBotMove();
-            $botThink.classList.add('hidden');
-            botBusy=false;
-            if(bm&&!over)doMove(bm.fr,bm.fc,bm.move);
-        },350+Math.random()*300);
+        fallbackBotMove();
     }
+}
+
+function fallbackBotMove(){
+    setTimeout(()=>{
+        const bm=getBotMove();
+        $botThink.classList.add('hidden');
+        botBusy=false;
+        if(bm&&!over)doMove(bm.fr,bm.fc,bm.move);
+    },50);
 }
 
 // ── Move log ─────────────────────────────────────────
