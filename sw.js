@@ -1,5 +1,5 @@
 const CACHE = 'chess-v1';
-const FILES = ['./index.html','./style.css','./chess.js','./manifest.json'];
+const FILES = ['./index.html','./style.css','./chess.js','./chess-worker.js','./manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));

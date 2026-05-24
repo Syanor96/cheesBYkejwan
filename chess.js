@@ -337,7 +337,7 @@ function render(){
 }
 
 // Incremental update — only touch squares that changed
-function patchBoard(changedSquares,prevLF,prevLT,animDest){
+function patchBoard(changedSquares,prevLF,prevLT){
     if(prevLF)sqEl(prevLF.row,prevLF.col).classList.remove('last-from');
     if(prevLT)sqEl(prevLT.row,prevLT.col).classList.remove('last-to');
     if(prevCheckSq)sqEl(prevCheckSq.row,prevCheckSq.col).classList.remove('in-check');
@@ -347,17 +347,14 @@ function patchBoard(changedSquares,prevLF,prevLT,animDest){
     }
     if(lastFrom)sqEl(lastFrom.row,lastFrom.col).classList.add('last-from');
     if(lastTo)sqEl(lastTo.row,lastTo.col).classList.add('last-to');
-    // patchBoard is called BEFORE finishMove switches turn,
-    // so the side about to be in check is opp(turn)
-    const nextTurn=opp(turn);
-    const chk=inCheck(board,nextTurn);
-    const king=chk?findKing(board,nextTurn):null;
+    const chk=inCheck(board,turn);
+    const king=chk?findKing(board,turn):null;
     if(king){sqEl(king.row,king.col).classList.add('in-check');prevCheckSq={row:king.row,col:king.col};}
     else prevCheckSq=null;
 }
 
 // ── Piece animation ───────────────────────────────────
-const ANIM_MS=160; // move duration
+const ANIM_MS=120; // move duration (faster on mobile)
 const $fly=document.getElementById('fly-piece');
 
 function sqCenter(r,c){
@@ -378,9 +375,15 @@ function animatePiece(piece,fr,fc,tr,tc,capturedSq,done){
     const srcSpan=sqEl(fr,fc).querySelector('.piece');
     if(srcSpan)srcSpan.style.opacity='0';
 
-    // The captured piece stays visible during flight.
-    // patchBoard() will remove it atomically once the attacker lands.
-    // (No pre-fade needed — avoids race with setSqContent removing the span)
+    // Fade out captured piece immediately
+    if(capturedSq){
+        const capSpan=sqEl(capturedSq.r,capturedSq.c).querySelector('.piece');
+        if(capSpan){
+            capSpan.style.transition='transform .12s ease-in, opacity .12s ease-in';
+            capSpan.style.transform='scale(1.3)';
+            capSpan.style.opacity='0';
+        }
+    }
 
     // Set up fly element
     $fly.textContent=piece;
@@ -413,7 +416,7 @@ function animatePiece(piece,fr,fc,tr,tc,capturedSq,done){
     ],{duration:ANIM_MS, easing, fill:'forwards'})
     .finished.then(()=>{
         $fly.style.display='none';
-        // Don't restore srcSpan.opacity — patchBoard will set the correct content
+        if(srcSpan)srcSpan.style.opacity='';
         done();
     });
 }
@@ -460,7 +463,8 @@ function animateCastle(piece,fr,fc,tr,tc,rookFr,rookFc,rookTr,rookTc,done){
     kAnim.finished.then(()=>{
         $fly.style.display='none';
         $fly2.remove();
-        // patchBoard sets correct content; don't try to restore removed spans
+        if(hideKing)hideKing.style.opacity='';
+        if(hideRook)hideRook.style.opacity='';
         done();
     });
 }
@@ -776,16 +780,54 @@ function getBotMove(){
     return bestMove;
 }
 
+// ── Web Worker for bot (keeps UI smooth) ─────────────
+let _worker=null;
+function getWorker(){
+    if(!_worker){
+        try{
+            _worker=new Worker('./chess-worker.js');
+        }catch(e){_worker=null;}
+    }
+    return _worker;
+}
+
 function scheduleBotMove(){
     botBusy=true;
     $botThink.classList.remove('hidden');
-    const delay=350+Math.random()*550;
-    setTimeout(()=>{
-        const bm=getBotMove();
-        $botThink.classList.add('hidden');
-        botBusy=false;
-        if(bm&&!over)doMove(bm.fr,bm.fc,bm.move);
-    },delay);
+    const w=getWorker();
+    if(w){
+        // Run AI in background thread
+        w.onmessage=function(e){
+            $botThink.classList.add('hidden');
+            botBusy=false;
+            const bm=e.data;
+            if(bm&&!over)doMove(bm.fr,bm.fc,bm.move);
+        };
+        w.onerror=function(){
+            // Fallback to main thread if worker fails
+            _worker=null;
+            $botThink.classList.add('hidden');
+            botBusy=false;
+            const bm=getBotMove();
+            if(bm&&!over)doMove(bm.fr,bm.fc,bm.move);
+        };
+        setTimeout(()=>{
+            w.postMessage({
+                board:board.map(r=>[...r]),
+                botCol,botLvl,
+                epTarget,
+                cr:{...cr}
+            });
+        },200);
+    } else {
+        // Fallback: main thread with short delay
+        setTimeout(()=>{
+            const bm=getBotMove();
+            $botThink.classList.add('hidden');
+            botBusy=false;
+            if(bm&&!over)doMove(bm.fr,bm.fc,bm.move);
+        },350+Math.random()*300);
+    }
 }
 
 // ── Move log ─────────────────────────────────────────
