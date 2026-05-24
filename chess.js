@@ -242,10 +242,47 @@ function findKing(b,col){
     return null;
 }
 
+// Fast attacked() — checks from the TARGET square outward (no full board scan)
 function attacked(b,row,col,byCol,ep,cst){
-    for(let r=0;r<8;r++)for(let c=0;c<8;c++){
-        if(!b[r][c]||pc(b[r][c])!==byCol)continue;
-        if(rawMoves(b,r,c,ep,cst,byCol).some(m=>m.row===row&&m.col===col))return true;
+    const op=byCol;
+    // Sliding pieces (rook/queen directions)
+    const rookDirs=[[1,0],[-1,0],[0,1],[0,-1]];
+    const bishDirs=[[1,1],[1,-1],[-1,1],[-1,-1]];
+    const rookPieces=op==='white'?['♖','♕']:['♜','♛'];
+    const bishPieces=op==='white'?['♗','♕']:['♝','♛'];
+    for(const[dr,dc]of rookDirs){
+        let r=row+dr,c=col+dc;
+        while(r>=0&&r<8&&c>=0&&c<8){
+            const p=b[r][c];
+            if(p){if(pc(p)===op&&rookPieces.includes(p))return true;break;}
+            r+=dr;c+=dc;
+        }
+    }
+    for(const[dr,dc]of bishDirs){
+        let r=row+dr,c=col+dc;
+        while(r>=0&&r<8&&c>=0&&c<8){
+            const p=b[r][c];
+            if(p){if(pc(p)===op&&bishPieces.includes(p))return true;break;}
+            r+=dr;c+=dc;
+        }
+    }
+    // Knights
+    const knightP=op==='white'?'♘':'♞';
+    for(const[dr,dc]of[[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]]){
+        const r=row+dr,c=col+dc;
+        if(r>=0&&r<8&&c>=0&&c<8&&b[r][c]===knightP)return true;
+    }
+    // Pawns
+    if(op==='white'){
+        if(row+1<8){if(col-1>=0&&b[row+1][col-1]==='♙')return true;if(col+1<8&&b[row+1][col+1]==='♙')return true;}
+    } else {
+        if(row-1>=0){if(col-1>=0&&b[row-1][col-1]==='♟')return true;if(col+1<8&&b[row-1][col+1]==='♟')return true;}
+    }
+    // King
+    const kingP=op==='white'?'♔':'♚';
+    for(const[dr,dc]of[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){
+        const r=row+dr,c=col+dc;
+        if(r>=0&&r<8&&c>=0&&c<8&&b[r][c]===kingP)return true;
     }
     return false;
 }
