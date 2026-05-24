@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>شطرنج</title>
+<meta name="theme-color" content="#1a120b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="شطرنج">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- ══ SCREEN: MENU ══ -->
+<div id="screen-menu" class="screen active">
+  <div class="menu-bg">
+    <div class="grain"></div>
+    <div class="vignette"></div>
+  </div>
+  <div class="menu-wrap">
+    <div class="menu-hero">
+      <div class="hero-piece">♛</div>
+      <h1 class="menu-title">شطرنج</h1>
+      <p class="menu-sub">Chess</p>
+    </div>
+
+    <!-- Theme selector -->
+    <div class="theme-row">
+      <button class="theme-btn active" data-theme="wood" title="چوب">🪵</button>
+      <button class="theme-btn" data-theme="black" title="مشکی">⚫</button>
+      <button class="theme-btn" data-theme="white" title="سفید">⚪</button>
+    </div>
+
+    <div class="menu-cards">
+      <button class="menu-card" id="btn-vs-human">
+        <span class="mcard-icon">👥</span>
+        <span class="mcard-title">دو نفره</span>
+        <span class="mcard-sub">بازی با دوست</span>
+      </button>
+      <button class="menu-card" id="btn-vs-bot">
+        <span class="mcard-icon">🤖</span>
+        <span class="mcard-title">با ربات</span>
+        <span class="mcard-sub">هوش مصنوعی</span>
+      </button>
+    </div>
+
+    <button class="btn-start" id="btn-start-human">شروع بازی ←</button>
+
+    <div id="difficulty-panel" class="difficulty-panel hidden">
+      <div class="panel-section">
+        <div class="panel-label">سطح ربات</div>
+        <div class="diff-btns">
+          <button class="diff-btn" data-level="1">مبتدی</button>
+          <button class="diff-btn active" data-level="2">متوسط</button>
+          <button class="diff-btn" data-level="3">حرفه‌ای</button>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-label">رنگ شما</div>
+        <div class="side-btns">
+          <button class="side-btn" data-side="white">♔ سفید</button>
+          <button class="side-btn active" data-side="black">♚ سیاه</button>
+          <button class="side-btn" data-side="random">🎲 تصادفی</button>
+        </div>
+      </div>
+      <button class="btn-start" id="btn-start-bot">شروع بازی ←</button>
+    </div>
+
+    <!-- Timer option -->
+    <div class="timer-option">
+      <label class="toggle-label">
+        <input type="checkbox" id="timer-toggle">
+        <span class="toggle-switch"></span>
+        <span class="toggle-text">تایمر بازی</span>
+      </label>
+      <div id="timer-config" class="timer-config hidden">
+        <button class="time-btn active" data-mins="3">۳ دقیقه</button>
+        <button class="time-btn" data-mins="5">۵ دقیقه</button>
+        <button class="time-btn" data-mins="10">۱۰ دقیقه</button>
+        <button class="time-btn" data-mins="15">۱۵ دقیقه</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ SCREEN: GAME ══ -->
+<div id="screen-game" class="screen">
+
+  <header class="header">
+    <div class="header-inner">
+      <button class="hdr-btn" id="btn-menu">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="logo"><span class="logo-icon">♟</span><span class="logo-text">شطرنج</span></div>
+      <div class="hdr-right">
+        <button class="hdr-btn" id="btn-undo" title="بازگشت حرکت">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+        </button>
+        <button class="hdr-btn sound-on" id="btn-sound">
+          <svg id="icon-sound-on" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+          <svg id="icon-sound-off" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+        </button>
+        <button class="hdr-btn" id="reset-btn">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="game-col">
+
+      <!-- Black bar -->
+      <div class="player-bar player-black">
+        <div class="player-info">
+          <div class="player-avatar black-avatar">♚</div>
+          <div class="player-details">
+            <span class="player-name" id="black-name">بازیکن سیاه</span>
+            <div class="captured-row" id="black-captured"></div>
+          </div>
+        </div>
+        <div class="player-right">
+          <span class="score-badge" id="black-score"></span>
+          <div class="timer-box hidden" id="timer-black"><span id="time-black">10:00</span></div>
+          <div id="black-indicator" class="turn-dot"></div>
+        </div>
+      </div>
+
+      <!-- Board -->
+      <div class="board-wrapper">
+        <div class="rank-labels"><span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span></div>
+        <div class="board-frame">
+          <div id="chessboard" class="chessboard"></div>
+        </div>
+        <div class="rank-labels"><span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span></div>
+      </div>
+      <div class="file-labels"><span>h</span><span>g</span><span>f</span><span>e</span><span>d</span><span>c</span><span>b</span><span>a</span></div>
+
+      <!-- White bar -->
+      <div class="player-bar player-white">
+        <div class="player-info">
+          <div class="player-avatar white-avatar">♔</div>
+          <div class="player-details">
+            <span class="player-name" id="white-name">بازیکن سفید</span>
+            <div class="captured-row" id="white-captured"></div>
+          </div>
+        </div>
+        <div class="player-right">
+          <span class="score-badge" id="white-score"></span>
+          <div class="timer-box hidden" id="timer-white"><span id="time-white">10:00</span></div>
+          <div id="white-indicator" class="turn-dot active"></div>
+        </div>
+      </div>
+
+    </div><!-- /game-col -->
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="status-card">
+        <div class="status-label">نوبت</div>
+        <div id="turn-indicator" class="turn-display turn-white">
+          <span class="turn-piece">♔</span><span class="turn-text">سفید</span>
+        </div>
+        <div id="bot-thinking" class="bot-thinking hidden">
+          <div class="thinking-dots"><span></span><span></span><span></span></div>
+          <span>ربات فکر می‌کند...</span>
+        </div>
+      </div>
+      <div class="move-log-card">
+        <div class="move-log-header">تاریخچه</div>
+        <div id="move-log" class="move-log"><div class="move-log-empty">—</div></div>
+      </div>
+      <div class="legend-card">
+        <div class="legend-item"><span class="legend-dot ld-sel"></span><span>انتخاب</span></div>
+        <div class="legend-item"><span class="legend-dot ld-hl"></span><span>حرکت</span></div>
+        <div class="legend-item"><span class="legend-dot ld-cap"></span><span>گرفتن</span></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Pause overlay -->
+  <div id="pause-overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <div class="overlay-title">⏸ مکث</div>
+      <button class="overlay-btn primary" id="pause-resume">ادامه بازی</button>
+      <button class="overlay-btn" id="pause-new">بازی جدید</button>
+      <button class="overlay-btn danger" id="pause-main">منو اصلی</button>
+    </div>
+  </div>
+
+  <!-- Promotion picker -->
+  <div id="promo-overlay" class="overlay hidden">
+    <div class="overlay-box promo-box">
+      <div class="overlay-title">ترفیع سرباز</div>
+      <div class="promo-subtitle">یک مهره برای ترفیع انتخاب کنید</div>
+      <div class="promo-pieces" id="promo-pieces"></div>
+    </div>
+  </div>
+
+</div><!-- /screen-game -->
+
+<div id="toast" class="toast"></div>
+
+<!-- Animated piece for move (absolute, JS moves it) -->
+<div id="fly-piece" class="fly-piece"></div>
+
+<script src="chess.js"></script>
+<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});</script>
+</body>
+</html>
