@@ -2,7 +2,7 @@
   "name": "شطرنج فارسی",
   "short_name": "شطرنج",
   "description": "بازی شطرنج فارسی کامل با هوش مصنوعی، تایمر و حالت دو نفره",
-  "start_url": "cheesBYkejwan/index.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "display_override": ["standalone", "fullscreen"],
   "background_color": "#1a120b",
