@@ -93,16 +93,23 @@ function tone(f,type,dur,vol=0.15){
         o.start();o.stop(ctx.currentTime+dur);
     }catch(e){}
 }
+let _noiseBuf=null;
 function noise(dur,vol=0.07){
     if(!sfxOn)return;
     try{
-        const ctx=ac(),buf=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate);
-        const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+        const ctx=ac();
+        // Re-use cached noise buffer (same length ±1ms is fine for SFX)
+        const needed=Math.ceil(ctx.sampleRate*0.15); // max 150ms buffer
+        if(!_noiseBuf||_noiseBuf.length<needed){
+            _noiseBuf=ctx.createBuffer(1,needed,ctx.sampleRate);
+            const d=_noiseBuf.getChannelData(0);
+            for(let i=0;i<needed;i++)d[i]=Math.random()*2-1;
+        }
         const s=ctx.createBufferSource(),g=ctx.createGain();
-        s.buffer=buf;s.connect(g);g.connect(ctx.destination);
+        s.buffer=_noiseBuf;s.connect(g);g.connect(ctx.destination);
         g.gain.setValueAtTime(vol,ctx.currentTime);
         g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+dur);
-        s.start();
+        s.start();s.stop(ctx.currentTime+dur);
     }catch(e){}
 }
 
@@ -408,56 +415,50 @@ function sqCenter(r,c){
 // capturedPos: {r,c} of piece to fade out before arrival (optional)
 function animatePiece(piece,fr,fc,tr,tc,capturedSq,done){
     const isWhite=pc(piece)==='white';
+    const sqSize=sqEl(0,0).getBoundingClientRect().width;
     const from=sqCenter(fr,fc);
     const to=sqCenter(tr,tc);
-    const sqSize=sqEl(0,0).getBoundingClientRect().width;
+    const dx=to.x-from.x, dy=to.y-from.y;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    const arc=Math.min(dist*0.16, sqSize*0.75);
 
-    // Hide the real piece on source square during flight
-    const srcSpan=sqEl(fr,fc).querySelector('.piece');
-    if(srcSpan)srcSpan.style.opacity='0';
-
-    // Fade out captured piece immediately
+    // Captured piece: opacity-only fade (compositor path), then remove from DOM
     if(capturedSq){
         const capSpan=sqEl(capturedSq.r,capturedSq.c).querySelector('.piece');
         if(capSpan){
-            capSpan.style.transition='transform .12s ease-in, opacity .12s ease-in';
-            capSpan.style.transform='scale(1.3)';
+            capSpan.style.transition='opacity .1s ease-in';
             capSpan.style.opacity='0';
+            setTimeout(()=>{if(capSpan.parentNode)capSpan.remove();},110);
         }
     }
 
-    // Set up fly element
+    // Hide src span; fly-piece covers it
+    const srcSpan=sqEl(fr,fc).querySelector('.piece');
+    if(srcSpan)srcSpan.style.visibility='hidden';
+
+    // Pin fly-piece at source via fixed left/top (set ONCE, never animated)
+    // Animate ONLY transform — zero reflow, runs on GPU compositor
     $fly.textContent=piece;
     $fly.className='fly-piece '+(isWhite?'piece-white':'piece-black');
-    $fly.style.cssText=`
-        display:block;
-        font-size:calc(var(--sq) * .82);
-        width:${sqSize}px;height:${sqSize}px;
-        line-height:${sqSize}px;
-        text-align:center;
-        left:${from.x - sqSize/2}px;
-        top:${from.y - sqSize/2}px;
-        transform:scale(1.18) translateZ(0);
-        filter:drop-shadow(0 6px 14px rgba(0,0,0,.55));
-        will-change:transform,left,top;
-        transition:none;
-        z-index:999;
-    `;
+    $fly.style.cssText=
+        'display:block;'+
+        `width:${sqSize}px;height:${sqSize}px;`+
+        `font-size:calc(var(--sq)*.82);line-height:${sqSize}px;text-align:center;`+
+        `left:${from.x-sqSize/2}px;top:${from.y-sqSize/2}px;`+
+        'transform:translateZ(0) scale(1.18);'+
+        'will-change:transform;'+
+        'filter:drop-shadow(0 4px 10px rgba(0,0,0,.5));'+
+        'z-index:999;';
 
-    // Arc via Web Animations API — lift piece slightly on the way
-    const dx=to.x-from.x, dy=to.y-from.y;
-    const dist=Math.sqrt(dx*dx+dy*dy);
-    const arc=Math.min(dist*0.18, sqSize*0.9); // arc height proportional to distance
     const easing='cubic-bezier(.25,.1,.3,1)';
-
     $fly.animate([
-        {left:`${from.x-sqSize/2}px`, top:`${from.y-sqSize/2}px`, transform:'scale(1.18) translateZ(0)', offset:0},
-        {left:`${(from.x+to.x)/2-sqSize/2}px`, top:`${(from.y+to.y)/2-sqSize/2-arc}px`, transform:'scale(1.22) translateZ(0)', offset:0.45},
-        {left:`${to.x-sqSize/2}px`, top:`${to.y-sqSize/2}px`, transform:'scale(1) translateZ(0)', offset:1},
-    ],{duration:ANIM_MS, easing, fill:'forwards'})
+        {transform:`translate(0px,0px) scale(1.18)`,                         offset:0},
+        {transform:`translate(${dx*.5}px,${dy*.5-arc}px) scale(1.2)`,        offset:0.45},
+        {transform:`translate(${dx}px,${dy}px) scale(1)`,                    offset:1},
+    ],{duration:ANIM_MS, easing, fill:'forwards', composite:'replace'})
     .finished.then(()=>{
         $fly.style.display='none';
-        if(srcSpan)srcSpan.style.opacity='';
+        if(srcSpan)srcSpan.style.visibility='';
         done();
     });
 }
@@ -478,35 +479,40 @@ function animateCastle(piece,fr,fc,tr,tc,rookFr,rookFc,rookTr,rookTc,done){
 
     const hideKing=sqEl(fr,fc).querySelector('.piece');
     const hideRook=sqEl(rookFr,rookFc).querySelector('.piece');
-    if(hideKing)hideKing.style.opacity='0';
-    if(hideRook)hideRook.style.opacity='0';
+    if(hideKing)hideKing.style.visibility='hidden';
+    if(hideRook)hideRook.style.visibility='hidden';
 
     function setupFly(el,p,isW){
         el.textContent=p;
         el.className='fly-piece '+(isW?'piece-white':'piece-black');
-        el.style.cssText=`display:block;font-size:calc(var(--sq)*.82);width:${sqSize}px;height:${sqSize}px;line-height:${sqSize}px;text-align:center;z-index:999;will-change:transform,left,top;`;
+        el.style.cssText=`display:block;font-size:calc(var(--sq)*.82);width:${sqSize}px;height:${sqSize}px;line-height:${sqSize}px;text-align:center;z-index:999;will-change:transform;`;
     }
     setupFly($fly,piece,isWhite);
     setupFly($fly2,rookPiece,isWhite);
 
+    // Pin at source; animate only transform
+    $fly.style.left=`${kFrom.x-sqSize/2}px`;$fly.style.top=`${kFrom.y-sqSize/2}px`;
+    $fly2.style.left=`${rFrom.x-sqSize/2}px`;$fly2.style.top=`${rFrom.y-sqSize/2}px`;
+    const kdx=kTo.x-kFrom.x,kdy=kTo.y-kFrom.y,karc=sqSize*.25;
+    const rdx=rTo.x-rFrom.x,rdy=rTo.y-rFrom.y;
     const easing='cubic-bezier(.25,.1,.3,1)';
     const kAnim=$fly.animate([
-        {left:`${kFrom.x-sqSize/2}px`,top:`${kFrom.y-sqSize/2}px`,transform:'scale(1.18)'},
-        {left:`${(kFrom.x+kTo.x)/2-sqSize/2}px`,top:`${(kFrom.y+kTo.y)/2-sqSize/2-sqSize*.3}px`,transform:'scale(1.22)'},
-        {left:`${kTo.x-sqSize/2}px`,top:`${kTo.y-sqSize/2}px`,transform:'scale(1)'},
-    ],{duration:ANIM_MS*1.2,easing,fill:'forwards'});
+        {transform:'translate(0,0) scale(1.18)',                              offset:0},
+        {transform:`translate(${kdx*.5}px,${kdy*.5-karc}px) scale(1.22)`,      offset:0.45},
+        {transform:`translate(${kdx}px,${kdy}px) scale(1)`,                    offset:1},
+    ],{duration:ANIM_MS*1.2,easing,fill:'forwards',composite:'replace'});
 
     $fly2.animate([
-        {left:`${rFrom.x-sqSize/2}px`,top:`${rFrom.y-sqSize/2}px`,transform:'scale(1.1)'},
-        {left:`${rTo.x-sqSize/2}px`,top:`${rTo.y-sqSize/2}px`,transform:'scale(1)'},
-    ],{duration:ANIM_MS*1.1,easing,fill:'forwards'});
+        {transform:'translate(0,0) scale(1.08)'},
+        {transform:`translate(${rdx}px,${rdy}px) scale(1)`},
+    ],{duration:ANIM_MS*1.1,easing,fill:'forwards',composite:'replace'});
 
     kAnim.finished.then(()=>{
         $fly.style.display='none';
         $fly2.remove();
-        if(hideKing)hideKing.style.opacity='';
-        if(hideRook)hideRook.style.opacity='';
         done();
+        if(hideKing)hideKing.style.visibility='';
+        if(hideRook)hideRook.style.visibility='';
     });
 }
 
@@ -702,46 +708,46 @@ function finishMove(piece,fr,fc,m,captured,_c,_pf,_pt,wasPromo,promoPiece){
 
 // ── Checkmate wave animation ──────────────────────────
 function checkmateWave(){
-    // All opponent pieces fly off with staggered delay
-    const loser=turn; // turn is already switched to loser in finishMove
+    const loser=turn;
     const pieces=[];
     for(let r=0;r<8;r++)for(let c=0;c<8;c++)
         if(board[r][c]&&pc(board[r][c])===loser)pieces.push({r,c});
-    pieces.forEach(({r,c},i)=>{
-        const sq=sqEl(r,c);
-        const span=sq.querySelector('.piece');
-        if(!span)return;
-        setTimeout(()=>{
-            span.style.transition=`transform .5s cubic-bezier(.4,0,.6,1) ${i*18}ms, opacity .5s ease ${i*18}ms`;
+    // One rAF batch — set custom properties, let CSS do the animation
+    requestAnimationFrame(()=>{
+        pieces.forEach(({r,c},i)=>{
+            const span=sqEl(r,c).querySelector('.piece');
+            if(!span)return;
             const angle=(Math.random()*260+50)*(Math.PI/180);
-            const dist=60+Math.random()*50;
-            span.style.transform=`translate(${Math.cos(angle)*dist}px,${Math.sin(angle)*dist}px) rotate(${(Math.random()-.5)*720}deg) scale(.3)`;
-            span.style.opacity='0';
-        },300+i*18);
+            const dist=55+Math.random()*40;
+            span.style.setProperty('--wx',`${Math.cos(angle)*dist}px`);
+            span.style.setProperty('--wy',`${Math.sin(angle)*dist}px`);
+            span.style.setProperty('--wr',`${(Math.random()-.5)*540}deg`);
+            span.style.animationDelay=`${300+i*16}ms`;
+            span.classList.add('piece-wave-out');
+        });
     });
 }
 
 // ── Promotion burst ───────────────────────────────────
 function promotionBurst(r,c){
-    const sq=sqEl(r,c);
-    const rect=sq.getBoundingClientRect();
+    const rect=sqEl(r,c).getBoundingClientRect();
     const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
-    const stars='★✦✧◆◇●';
-    for(let i=0;i<12;i++){
+    // 8 particles only; single rAF; CSS handles animation
+    const frag=document.createDocumentFragment();
+    for(let i=0;i<8;i++){
         const p=document.createElement('span');
-        p.textContent=stars[i%stars.length];
-        const angle=(i/12)*Math.PI*2;
-        const dist=35+Math.random()*30;
-        const col=['#d4a017','#f6e27a','#fff','#ffcc44'][i%4];
-        p.style.cssText=`position:fixed;left:${cx}px;top:${cy}px;font-size:${10+Math.random()*8}px;color:${col};pointer-events:none;z-index:1000;transform:translate(-50%,-50%);transition:none;`;
-        document.body.appendChild(p);
-        requestAnimationFrame(()=>{
-            p.style.transition=`transform .55s cubic-bezier(.2,0,.8,1), opacity .55s ease .1s`;
-            p.style.transform=`translate(calc(-50% + ${Math.cos(angle)*dist}px), calc(-50% + ${Math.sin(angle)*dist}px)) scale(0)`;
-            p.style.opacity='0';
-        });
-        setTimeout(()=>p.remove(),700);
+        const angle=(i/8)*Math.PI*2;
+        const dist=30+Math.random()*25;
+        p.className='promo-particle';
+        p.style.cssText=
+            `left:${cx}px;top:${cy}px;`+
+            `--bx:${Math.cos(angle)*dist}px;--by:${Math.sin(angle)*dist}px;`+
+            `color:${['#d4a017','#f6e27a','#fff','#ffcc44'][i%4]};`;
+        p.textContent='★';
+        frag.appendChild(p);
     }
+    document.body.appendChild(frag);
+    setTimeout(()=>document.querySelectorAll('.promo-particle').forEach(p=>p.remove()),650);
 }
 
 // ── Bot AI (minimax + alpha-beta) ─────────────────────

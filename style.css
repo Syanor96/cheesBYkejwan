@@ -206,23 +206,21 @@ html,body{height:100%;font-family:'Vazirmatn',sans-serif;background:var(--body-b
 .piece.appear{animation:pieceAppear .18s cubic-bezier(.34,1.56,.64,1) both}
 @keyframes pieceAppear{from{transform:scale(.6);opacity:.3}to{transform:scale(1);opacity:1}}
 
-/* Flying piece animation */
+/* Flying piece — positioned & styled by JS; only transform animated */
 .fly-piece{
-  position:fixed;z-index:999;pointer-events:none;
-  line-height:1;text-align:center;
-  transform-origin:center;
-  display:none;
-  will-change:left,top,transform;
+  position:fixed;pointer-events:none;display:none;
+  will-change:transform;
+  transform-origin:center center;
 }
 .fly-piece.piece-white{
   color:#fff;
-  text-shadow:0 0 3px #000,1px 1px 0 #555,-1px -1px 0 #555,1px -1px 0 #555,-1px 1px 0 #555;
-  filter:drop-shadow(0 6px 14px rgba(0,0,0,.7)) drop-shadow(0 0 6px rgba(212,160,23,.35));
+  text-shadow:0 0 3px #000,1px 1px 0 #555,-1px -1px 0 #555;
+  filter:drop-shadow(0 5px 10px rgba(0,0,0,.65));
 }
 .fly-piece.piece-black{
   color:#111;
-  text-shadow:0 0 3px rgba(255,255,255,.5),1px 1px 0 rgba(255,255,255,.3),-1px -1px 0 rgba(255,255,255,.3);
-  filter:drop-shadow(0 6px 12px rgba(0,0,0,.6));
+  text-shadow:0 0 3px rgba(255,255,255,.5),1px 1px 0 rgba(255,255,255,.3);
+  filter:drop-shadow(0 4px 8px rgba(0,0,0,.55));
 }
 
 /* Move dots */
@@ -339,4 +337,28 @@ html,body{height:100%;font-family:'Vazirmatn',sans-serif;background:var(--body-b
   :root{--board-size:min(330px,92vw)}
   .rank-labels,.file-labels{display:none}
   .header{padding:.55rem .85rem}
+}
+
+/* ── Performance animations (GPU-only) ─────────────────── */
+
+/* Checkmate wave — pieces fly off */
+@keyframes pieceWaveOut{
+  0%  {transform:translate(0,0) rotate(0deg) scale(1);opacity:1}
+  100%{transform:translate(var(--wx),var(--wy)) rotate(var(--wr)) scale(.25);opacity:0}
+}
+.piece-wave-out{
+  animation:pieceWaveOut .48s cubic-bezier(.4,0,.8,1) both;
+  will-change:transform,opacity;
+}
+
+/* Promotion burst particles */
+@keyframes particleBurst{
+  0%  {transform:translate(-50%,-50%) scale(1);opacity:1}
+  100%{transform:translate(calc(-50% + var(--bx)),calc(-50% + var(--by))) scale(0);opacity:0}
+}
+.promo-particle{
+  position:fixed;pointer-events:none;z-index:1000;
+  font-size:13px;line-height:1;
+  animation:particleBurst .55s cubic-bezier(.2,0,.8,1) forwards;
+  will-change:transform,opacity;
 }
